@@ -49,7 +49,7 @@ import jax
 from jax import monitoring
 import jax.config
 from jax.experimental import multihost_utils
-from jax.experimental.gda_serialization import serialization as gda_serialization
+from jax.experimental.array_serialization import serialization as array_serialization
 import jax.numpy as jnp
 from jax.sharding import Mesh
 import numpy as np
@@ -760,7 +760,7 @@ class Checkpointer(object):
 
       if isinstance(arr, jax.Array):
         local_chunk_info = None
-        metadata = gda_serialization._get_metadata(arr)  # pylint: disable=protected-access
+        metadata = array_serialization._get_metadata(arr)  # pylint: disable=protected-access
         del metadata['dtype']
       else:
         local_chunk_info = self._partitioner.get_local_chunk_info(
@@ -1015,7 +1015,7 @@ class Checkpointer(object):
           }
 
         if isinstance(arr, jax.Array):
-          await gda_serialization.async_serialize(arr, tmp_ts_spec_dict)
+          await array_serialization.async_serialize(arr, tmp_ts_spec_dict)
         else:
           t = await ts.open(
               tmp_ts_spec_dict,
@@ -1802,7 +1802,7 @@ async def _read_ts(
     arr = await t.read()
   else:
     if params_on_devices:
-      arr = await gda_serialization.async_deserialize(
+      arr = await array_serialization.async_deserialize(
           jax.sharding.NamedSharding(mesh, axes),
           tmp_ts_spec_dict,
       )
@@ -2102,7 +2102,7 @@ class TrainStateCheckpointHandler(orbax.checkpoint.PyTreeCheckpointHandler):
           arr = _cast(arr, arg.dtype)
         return arr
       elif isinstance(arr, jax.Array):
-        metadata = gda_serialization._get_metadata(arr)  # pylint: disable=protected-access
+        metadata = array_serialization._get_metadata(arr)  # pylint: disable=protected-access
         del metadata['dtype']
       else:
         metadata = {

@@ -44,6 +44,7 @@ from t5x import models
 from t5x import partitioning
 from t5x import train_state as train_state_lib
 from t5x import utils
+from t5x.te_helper import TransformerEngineHelper
 import typing_extensions
 
 
@@ -658,25 +659,19 @@ def accumulate_grads_microbatched(
   """
   batch_size = next(iter(batch.values())).shape[0]
 
-  grad_fn = jax.value_and_grad(model.loss_fn, has_aux=True)
+  grad_fn = jax.value_and_grad(model.loss_fn, argnums=(0, 3), has_aux=True)
 
   # We assume that the model loss_fn supports flax mutables if and only if
   # the train state includes non-empty flax mutables.
   # Note: Default t5x models don't support flax_mutables. One needs to subclass
   # them and return flax_mutables from `get_initial_variables` and `loss_fn`.
 
-  initial_flax_mutables = train_state.flax_mutables if train_state.flax_mutables else None
+  initial_flax_mutables = train_state.flax_mutables if train_state.flax_mutables else {}
 
   if num_microbatches is None or num_microbatches <= 1:
-
-    if initial_flax_mutables is None:
-      (_, metrics), grad_accum = grad_fn(train_state.params, batch, dropout_rng)
-      flax_mutables = None
-    else:
-      (_, (metrics,
-           flax_mutables)), grad_accum = grad_fn(train_state.params, batch,
-                                                 dropout_rng,
-                                                 initial_flax_mutables)
+    (_, metrics), grad_accum = grad_fn(train_state.params, batch,
+                                       dropout_rng, initial_flax_mutables)
+    flax_mutables=initial_flax_mutables
   else:
     assert batch_size % num_microbatches == 0, (
         "Batch size isn't divided evenly by num_microbatches.")
@@ -703,13 +698,9 @@ def accumulate_grads_microbatched(
           lambda x: partitioning.with_sharding_constraint(  # pylint: disable=g-long-lambda
               x, data_partition_spec),
           mbatch)
-      if flax_mutables is None:
-        (_, metrics), grad = grad_fn(train_state.params, mbatch,
-                                     sub_dropout_rng)
-      else:
-        (_, (metrics, flax_mutables)), grad = grad_fn(train_state.params,
-                                                      mbatch, sub_dropout_rng,
-                                                      flax_mutables)
+      (_, metrics), grad = grad_fn(train_state.params, mbatch,
+                                   sub_dropout_rng, flax_mutables)
+
       return metrics, grad, flax_mutables
 
     def per_microbatch_train_step(
@@ -722,7 +713,9 @@ def accumulate_grads_microbatched(
       metrics, grad, flax_mutables = metrics_and_grad(loop_cnt, dropout_rng,
                                                       flax_mutables)
 
-      grad_accum = jax.tree_util.tree_map(jnp.add, grad_accum, grad)
+      grad_accum[0] = jax.tree_map(jnp.add, grad_accum[0], grad[0])
+      grad_accum[1] = TransformerEngineHelper.update_fp8_metas(grad[1], flax_mutables)
+      flax_mutables = grad_accum[1]
       metrics = jax.lax.cond(loop_cnt == 0, lambda _: metrics,
                              lambda _: merge_metrics(prev_metrics, metrics),
                              None)
@@ -730,8 +723,10 @@ def accumulate_grads_microbatched(
 
     # Initialize gradient accumulation loop state.
     accum_dtype = jnp.float32
-    grad_accum_init = jax.tree_util.tree_map(
-        lambda x: jnp.zeros(x.shape, accum_dtype), train_state.params)
+    grad_accum_init = [jax.tree_map(lambda x: jnp.zeros(x.shape, accum_dtype),
+                                   train_state.params),
+                       jax.tree_map(lambda x: jnp.zeros(x.shape, accum_dtype),
+                                   train_state.flax_mutables)]
     initial_metrics_shape, _, _ = jax.eval_shape(
         metrics_and_grad,
         loop_cnt=0,
@@ -749,6 +744,9 @@ def accumulate_grads_microbatched(
         0, num_microbatches, per_microbatch_train_step, loop_init)
 
     del new_dropout_rng
+
+  grad_accum = (grad_accum[0],
+                TransformerEngineHelper.update_fp8_metas(grad_accum[1], flax_mutables))
 
   return grad_accum, metrics, flax_mutables
 
@@ -778,9 +776,12 @@ def apply_grads(
   """
   if other_state_variables is None:
     other_state_variables = {}
+
+  other_state_variables["flax_mutables"] = FrozenDict(grad_accum[1])
+
   # Update optimizer using accumulated gradient.
   new_train_state = train_state.apply_gradient(
-      grad_accum, learning_rate=learning_rate, **other_state_variables)
+      grad_accum[0], learning_rate=learning_rate, **other_state_variables)
   metrics["learning_rate"] = clu.metrics.Average.from_model_output(
       jnp.asarray([learning_rate]))
   metrics["learning_rate/current"] = clu.metrics.LastValue.from_model_output(
