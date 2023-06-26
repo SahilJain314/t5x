@@ -30,6 +30,7 @@ MODEL_DIR_LOCAL=${6:-"model_dir"}
 MODEL_DIR=${PWD}/${MODEL_DIR_LOCAL}
 NUM_MICROBATCHES=${7:-0}
 ENABLE_FP8=${8:-1}
+[[ $ENABLE_FP8 -eq 1 ]] && PREC='bfloat16' # Required for t5x te fp8 to work
 TRANSPOSE_BS=${9:-1}
 FUSE_QKV=${10:-1}
 PACK=${11:-0}

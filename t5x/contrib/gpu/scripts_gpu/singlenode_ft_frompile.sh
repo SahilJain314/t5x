@@ -36,6 +36,7 @@ NUM_MICROBATCHES=${8:-0}
 # Otherwise, be wary of overriding your pretrained checkpoint with the finetuned one.
 MAKE_FT_DIR=${9:-false} # 'true' or 'false'. 
 ENABLE_FP8=${10:-1}
+[[ $ENABLE_FP8 -eq 1 ]] && PREC='bfloat16' # Required for t5x te fp8 to work
 TRANSPOSE_BS=${11:-1}
 FUSE_QKV=${12:-1}
 PACK=${13:-0}

@@ -1,6 +1,6 @@
 # GPU Scripts and Usage
 
-The [t5x/contrib/gpu/scripts_gpu](../../t5x/contrib/gpu/scripts_gpu) directory contains scripts optimized for GPU usage.
+The [t5x/contrib/gpu/scripts_gpu](../../t5x/contrib/gpu/scripts_gpu) directory contains scripts optimized for GPU usage and includes FP8 support via [Transformer Engine](https://github.com/NVIDIA/TransformerEngine).
 
 Install with `pip install -r pile_requirements.txt` to get all pile dependencies.
 
@@ -15,7 +15,7 @@ Note: this should only be done with singlenode jobs and/or for downloading the p
 `t5x/contrib/gpu/docker/interactive_pull_and_launch.sh [URL] /my/dataset/dir`
 
 ## Downloading The Pile
-Run `download_the_pile.py` to download the pile. It will download to the directory set in the environment variable: `TFDS_DATA_DIR`. After that, set the `TFDS_DATA_DIR` to the same directory in your scripts to use.
+We use The Pile for our pretraining experiments. If you would like to as well, run `download_the_pile.py` to download it. The download is approximately 1TB. It will download to the directory set in the environment variable: `TFDS_DATA_DIR`. After that, set the `TFDS_DATA_DIR` to the same directory in your scripts to use.
 
 ## Single Node runs
 Pretraining and Finetuning can be done with `singlenode_*.sh`. These will build a T5X model with the Adam optimizer and relevant parameters. These will allow multi-gpu on one host.
@@ -52,7 +52,7 @@ All parameters can be found in the relevant script.
 ### Example Pretraining Commands
 Assumes 8GPU 80GB A100/H100 Nodes. `ENABLE_FP8` uses transformer engine (included in container) and requires H100
 
-* Note: To use, FP8 set `PREC` to `bfloat16` and set `ENABLE_FP8` to `1`
+* Note: To use, FP8 set `ENABLE_FP8` to `1`. This will automatically set `PREC` to `bfloat16` as is required by internals for `FP8` usage.
 #### [T5-v1.1-small](../t5/t5_1_1/small.gin) (60M):
 ```sh
 PREC=bfloat16 T5_SIZE=small BSIZE_PER_GPU=256 TRAIN_STEPS=1000000 NUM_MICROBATCHES=1 ENABLE_FP8=1 TP_SIZE=1 \

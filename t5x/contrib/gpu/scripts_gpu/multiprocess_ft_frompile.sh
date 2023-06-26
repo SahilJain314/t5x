@@ -28,6 +28,7 @@ ENC_SL=${ENC_SL:=512}
 DEC_SL=${DEC_SL:=128}
 NUM_MICROBATCHES=${NUM_MICROBATCHES:=1}
 ENABLE_FP8=${ENABLE_FP8:=1}
+[[ $ENABLE_FP8 -eq 1 ]] && PREC='bfloat16' # Required for t5x te fp8 to work
 TP_SIZE=${TP_SIZE:=1}
 TRANSPOSE_BS=${TRANSPOSE_BS:=1}
 FUSE_QKV=${FUSE_QKV:=1}
@@ -81,13 +82,7 @@ esac
 
 # Global batch size
 BSIZE=$(( GPUS_PER_NODE * BSIZE_PER_GPU * SLURM_JOB_NUM_NODES / TP_SIZE))
-
-GPU_DEVICES="0"
-for id in $( seq 1 $((GPUS_PER_NODE - 1)) );
-do
-  GPU_DEVICES="${GPU_DEVICES},${id}"
-done
-
+export GPU_DEVICES=$(seq -s, 0 $((GPUS_PER_NODE - 1)) )
 export CUDA_VISIBLE_DEVICES="${GPU_DEVICES}"
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 
@@ -99,9 +94,6 @@ test "${WITH_MP}" == 1 && export MP_ARGS="--multiprocess_gpu --coordinator_addre
 
 # Disable checkpointing if desired
 test "${CHECKPOINT_DISABLE}" == 1 && export CHECK_DISABLE_ARGS="--gin.utils.CheckpointConfig.save=None"
-
-# Set multiprocesses command if WITH_MP=1
-#export MP_ARGS="--multiprocess_gpu --coordinator_address=${SLURM_LAUNCH_NODE_IPADDR}:12345 --process_count=${SLURM_NTASKS} --process_index=${SLURM_PROCID}"
 
 $NSYS_CMD \
 python3 -u ${T5X_DIR}/t5x/train.py \

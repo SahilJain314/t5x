@@ -72,7 +72,7 @@ be read by TensorBoard.
 T5X can be run easily on GPUs either in single-node configurations or multi-node configurations with a SLURM+pyxis cluster. Further instructions at [Rosetta T5X README](https://github.com/NVIDIA/JAX-Toolbox/tree/main/rosetta/rosetta/projects/t5x/README.md). The `t5x/contrib/gpu/scripts_gpu` folder contains example scripts for pretraining T5X on [The Pile](https://pile.eleuther.ai/) and for finetuning on SQuAD and MNLI. These scripts and associated `gin` configurations also contain additional GPU optimizations for better throughput.
 
 We now have support for:
-- Transformer Engine FP8
+- [Transformer Engine](https://github.com/NVIDIA/TransformerEngine) FP8
 - Improved performance on H100/A100 GPUs
 
 ## Installation
