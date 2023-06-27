@@ -132,3 +132,15 @@ t5x/contrib/gpu/scripts_gpu/singlenode_ft_frompile.sh \
   {FUSE_QKV (1 by default)} \
   {PACK (0 by default)}
 ```
+
+# Changelog
+- Added Transformer Engine + FP8 support
+- Added the Transposed Batch-Sequence GPU optimization
+- A100 Perf gains! (BF16)
+  - 80% speedup - T5-small
+  - 23% speedup - T5-large
+  - 18% speedup - T5-xl
+  - 40% speedup - T5-xxl 
+- H100 FP8 support, with gains over A100
+  - 2.08x faster - T5-large (FP8)
+  - 2.24x faster - T5-xl (FP8)
